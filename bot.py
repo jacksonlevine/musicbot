@@ -27,14 +27,17 @@ async def on_ready():
     print(f'Logged in as {client.user}')
     client.loop.create_task(attend_to_song_queue())
 
+
 song_queue = []
 current_ffmpeg_process = None
+paused = False
 
 async def attend_to_song_queue():
     global song_queue
     global current_ffmpeg_process
+    global paused
     while True:
-        if len(song_queue) > 0:
+        if len(song_queue) > 0 and not paused:
             filename, voice_channel, guildname, txtchannel = song_queue.pop(0)
             voice = discord.utils.get(client.voice_clients, guild=guildname)
 
@@ -67,6 +70,7 @@ async def attend_to_song_queue():
 async def on_message(message):
     global song_queue
     global current_ffmpeg_process
+    global paused
 
     if message.author == client.user:
         return
@@ -86,19 +90,45 @@ async def on_message(message):
                 voice = await channel.connect()
                 await message.channel.send("Joined channel!")
 
-    if message.content.startswith('!stop'):
+    if message.content.startswith('!stop') or message.content.startswith('!pause'):
         voice = discord.utils.get(client.voice_clients, guild=message.guild)
         if voice and voice.is_playing():
             voice.stop()
             if current_ffmpeg_process:
                     current_ffmpeg_process.cleanup()
                     current_ffmpeg_process = None
-            await message.channel.send("Playback stopped.")
+            paused = True
+            await message.channel.send("Playback stopped. Type !resume to resume the queue, or !play a link to start a fresh one. If you !resume, then further calls to !play will keep adding to the existing queue.")
         else:
             await message.channel.send("Nothing is currently playing.")
 
-    if message.content.startswith('!play'):
+    if message.content.startswith('!resume'):
+        paused = False
 
+        
+    
+    if message.content.startswith('!skip'):
+        voice = discord.utils.get(client.voice_clients, guild=message.guild)
+
+        if voice and voice.is_playing():
+            voice.stop()
+            if current_ffmpeg_process:
+                    current_ffmpeg_process.cleanup()
+                    current_ffmpeg_process = None
+            await message.channel.send("Song skipped.")
+        else:
+            await message.channel.send("Nothing is currently playing.")
+
+    if message.content.startswith('!clear'):
+        song_queue = []
+        paused = False
+        await message.channel.send("Cleared song queue.")
+
+
+    if message.content.startswith('!play'):
+        if paused:
+            paused = False
+            song_queue = []
         channel = message.author.voice.channel
 
         if not channel:
@@ -129,7 +159,7 @@ async def on_message(message):
             # run the command
             subprocess.run(command, check=True)
             # have to do this before i actually append otherwise the other thread is ON IT!
-            await message.channel.send(f"Added {filename} to queue.") 
+            await message.channel.send(f"Added {filename} to queue.")
             # append the filename to the queued files to play
             song_queue.append((filename, message.author.voice.channel, message.guild, message.channel))
             
