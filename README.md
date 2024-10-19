@@ -2,6 +2,10 @@ To use:
 
 Windows-specific commands, use from Windows Terminal:
 
+Prerequisites:
+- Install ffmpeg (have the folder w/ the .exe on your PATH)
+- Install yt-dlp (have the folder w/ the .exe on your PATH)
+
 Install requirements:
 ```
 python -m pip install -r requirements.txt
