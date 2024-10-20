@@ -5,7 +5,7 @@ import asyncio
 import subprocess
 from pprint import pprint
 import uuid
-
+import random
 
 # Replace with your actual bot token
 TOKEN = os.environ['DISCORD_911BOT_TOKEN']
@@ -27,7 +27,6 @@ async def on_ready():
     print(f'Logged in as {client.user}')
     client.loop.create_task(attend_to_song_queue())
 
-
 song_queue = []
 current_ffmpeg_process = None
 paused = False
@@ -38,8 +37,15 @@ async def attend_to_song_queue():
     global paused
     while True:
         if len(song_queue) > 0 and not paused:
-            filename, voice_channel, guildname, txtchannel = song_queue.pop(0)
+            filename, voice_channel, guildname, txtchannel, volume = song_queue.pop(0)
             voice = discord.utils.get(client.voice_clients, guild=guildname)
+            
+            realvolume = 1.0
+            try:
+                if isinstance(float(volume), float):
+                    realvolume = float(volume)
+            except ValueError:
+                print("Invalid value queued for volume")
 
             if not voice or not voice.is_connected():
                 try:
@@ -49,7 +55,7 @@ async def attend_to_song_queue():
                     continue
 
             try:
-                current_ffmpeg_process = discord.FFmpegPCMAudio(executable="ffmpeg", source=filename)
+                current_ffmpeg_process = discord.FFmpegPCMAudio(executable="ffmpeg", source=filename, options=f"-filter:a \"volume={realvolume}\"")
                 voice.play(current_ffmpeg_process)
                 await txtchannel.send(f"Now playing: {filename}")
                 while voice.is_playing():
@@ -147,6 +153,23 @@ async def on_message(message):
             await message.channel.send("Please provide a valid YouTube URL.")
             return
         
+        realvolume = 1.0
+        
+        try:
+            x = message.content.rsplit("v:")
+
+            if len(x) > 1:
+                try:
+                    #clamp the value to PREVENT ABUSE
+                    realvolume = max(0.0, min(float(x[1]), 4.0))
+                except:
+                    await message.channel.send(f"Invalid volume argument, using 1.0")
+            else:
+                print("No volume argument found.")
+        except:
+            print("No volume argument found.")
+
+
         # filename to be downloaded
         filename = f'downloads/{uuid.uuid4()}.mp3'
 
@@ -161,7 +184,7 @@ async def on_message(message):
             # have to do this before i actually append otherwise the other thread is ON IT!
             await message.channel.send(f"Added {filename} to queue.")
             # append the filename to the queued files to play
-            song_queue.append((filename, message.author.voice.channel, message.guild, message.channel))
+            song_queue.append((filename, message.author.voice.channel, message.guild, message.channel, realvolume))
             
             
         except subprocess.CalledProcessError as e:
