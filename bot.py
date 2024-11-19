@@ -81,6 +81,15 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+
+    texts = message.content.split(" ")
+
+    commandlength = len(texts[0])
+
+    message.content = message.content[0:commandlength].lower() + message.content[commandlength:len(message.content)]
+
+    print("Message content: \" " + message.content + " \" ")
+
     # command to join the voice channel
     if message.content.startswith('!join'):
         channel = message.author.voice.channel
